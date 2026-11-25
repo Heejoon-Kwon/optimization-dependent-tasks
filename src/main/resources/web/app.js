@@ -135,13 +135,13 @@ function showFileStatus(message, failed = false) {
 }
 
 function downloadProject() {
-    const label = title.trim() || 'Flowline 일정';
-    const name = label.replace(/[<>:"/\\|?*]/g, '_').replace(/[. ]+$/, '') || 'flowline';
+    const label = title.trim() || '작업 일정';
+    const name = label.replace(/[<>:"/\\|?*]/g, '_').replace(/[. ]+$/, '') || 'schedule';
     const body = JSON.stringify({ format: FILE_FORMAT, version: FILE_VERSION, title: label, resources, tasks });
     const url = URL.createObjectURL(new Blob([body], { type: 'application/json' }));
     const link = document.createElement('a');
     link.href = url;
-    link.download = name + '.flowline.json';
+    link.download = name + '.schedule.json';
     link.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
     fileDirty = false;
@@ -152,13 +152,13 @@ function downloadProject() {
 async function openProject(file) {
     try {
         if (file.size > MAX_FILE_SIZE) {
-            showFileStatus('1MB 이하의 Flowline 파일을 선택하세요.', true);
+            showFileStatus('1MB 이하의 일정 파일을 선택하세요.', true);
             return;
         }
         const data = JSON.parse(await file.text());
         const input = data?.format === FILE_FORMAT && data.version === FILE_VERSION && decodeInput(data);
         if (!input) {
-            showFileStatus('지원하는 Flowline 일정 파일을 선택하세요.', true);
+            showFileStatus('이 프로그램에서 저장한 일정 파일을 선택하세요.', true);
             return;
         }
         if (fileDirty && !window.confirm('파일로 저장하지 않은 변경 사항이 있습니다. 선택한 일정으로 바꿀까요?')) return;

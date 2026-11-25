@@ -58,7 +58,7 @@ public final class WebServer {
             }
         });
         server.start();
-        System.out.printf("Flowline listening at http://%s:%d%n", host, server.getAddress().getPort());
+        System.out.printf("Server listening at http://%s:%d%n", host, server.getAddress().getPort());
     }
 
     private static Asset asset(String name, String contentType) throws IOException {

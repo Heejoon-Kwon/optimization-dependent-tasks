@@ -30,21 +30,8 @@ button:focus-visible, summary:focus-visible, a:focus-visible, input:focus-visibl
 .shell { width: min(1440px, calc(100% - 80px)); margin-inline: auto; }
 .topbar { background: #fff; border-bottom: 1px solid var(--border); }
 .topbar-inner { height: 66px; display: flex; align-items: center; justify-content: space-between; }
-.brand, .source-link { display: inline-flex; align-items: center; text-decoration: none; }
-.brand {
-    gap: 11px; color: var(--text); font: 760 1.35rem/1 system-ui, sans-serif;
-    letter-spacing: -.055em;
-}
-.brand-mark {
-    display: grid; grid-template: repeat(2, 7px) / repeat(2, 7px); gap: 4px;
-    position: relative; place-content: center; width: 34px; height: 34px;
-    border-radius: 10px; background: var(--blue);
-}
-.brand-mark::before, .brand-mark::after { content: ""; position: absolute; background: #aabaff; }
-.brand-mark::before { width: 13px; height: 2px; top: 11px; left: 11px; }
-.brand-mark::after { height: 13px; width: 2px; top: 11px; left: 21px; }
-.brand-mark i { position: relative; background: #fff; border-radius: 2px; z-index: 1; }
-.brand-mark i:last-child { grid-column: 2; }
+.app-name, .source-link { display: inline-flex; align-items: center; text-decoration: none; }
+.app-name { color: var(--text); font-size: 1.05rem; font-weight: 760; letter-spacing: -.04em; }
 .source-link { gap: 7px; padding: 7px 0 7px 10px; color: var(--muted); font-size: .88rem; font-weight: 650; }
 .source-link:hover { color: var(--blue); }
 

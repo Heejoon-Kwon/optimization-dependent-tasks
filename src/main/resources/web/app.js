@@ -6,6 +6,9 @@ const MAX_CAPACITY = 100;
 const MAX_DURATION = 1_000_000;
 const MAX_ID = 2_147_483_647;
 const STORAGE_KEY = 'flowline.tasks.v1';
+const FILE_FORMAT = 'flowline-project';
+const FILE_VERSION = 1;
+const MAX_FILE_SIZE = 1024 * 1024;
 const formatter = new Intl.NumberFormat('ko-KR');
 const byId = id => document.getElementById(id);
 const form = byId('tasks-form');
@@ -18,6 +21,9 @@ const addButton = byId('add-task');
 const graphViewport = byId('graph-viewport');
 const scheduleOrder = byId('schedule-order');
 const addResource = byId('add-resource');
+const projectTitle = byId('project-title');
+const projectFile = byId('project-file');
+const fileStatus = byId('file-status');
 const resourceNumber = id => 'R' + String(id).padStart(2, '0');
 
 const samples = {
@@ -46,7 +52,8 @@ const samples = {
     blank: { resources: [], tasks: [[1, '', '', [], []]] }
 };
 
-let { tasks, resources } = loadInput() ?? exampleInput('cafe');
+let { tasks, resources, title, fileDirty = false } = loadInput() ?? exampleInput('cafe');
+projectTitle.value = title;
 let nextId = nextNumber(tasks);
 let nextResourceId = nextNumber(resources);
 let hasResult = false;
@@ -61,6 +68,7 @@ function nextNumber(list) {
 function exampleInput(key) {
     const example = samples[key];
     return {
+        title: { cafe: '카페 음료 준비', office: '월간 보고서 작성', blank: '' }[key],
         resources: example.resources.map(([id, name, capacity]) => ({ id, name, capacity: String(capacity) })),
         tasks: example.tasks.map(([id, name, duration, prerequisites, resourceIds]) => ({
             id, name, duration: String(duration), prerequisites: [...prerequisites],
@@ -80,25 +88,33 @@ function savedIds(list, maximum, numericField) {
     return ids;
 }
 
+function decodeInput(saved) {
+    if (!saved) return null;
+    const oldFormat = Array.isArray(saved);
+    const savedTasks = oldFormat ? saved : saved.tasks;
+    const savedResources = oldFormat ? [] : saved.resources;
+    const taskIds = savedIds(savedTasks, MAX_TASKS, 'duration');
+    const resourceIds = savedIds(savedResources, MAX_RESOURCES, 'capacity');
+    const savedTitle = saved.title ?? '';
+    if (!taskIds?.size || !resourceIds || typeof savedTitle !== 'string' || savedTitle.length > 80) return null;
+    for (const task of savedTasks) {
+        if (!Array.isArray(task.prerequisites)
+            || task.prerequisites.some(id => id === task.id || !taskIds.has(id))
+            || new Set(task.prerequisites).size !== task.prerequisites.length) return null;
+        if (oldFormat) task.demands = [];
+        if (!Array.isArray(task.demands) || task.demands.some(demand => !demand
+            || !resourceIds.has(demand.resourceId) || !Number.isInteger(demand.quantity) || demand.quantity < 1
+            || demand.quantity > MAX_CAPACITY)
+            || new Set(task.demands.map(demand => demand.resourceId)).size !== task.demands.length) return null;
+    }
+    return { tasks: savedTasks, resources: savedResources, title: savedTitle };
+}
+
 function loadInput() {
     try {
         const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
-        if (!saved) return null;
-        const oldFormat = Array.isArray(saved);
-        const savedTasks = oldFormat ? saved : saved.tasks;
-        const savedResources = oldFormat ? [] : saved.resources;
-        const taskIds = savedIds(savedTasks, MAX_TASKS, 'duration');
-        const resourceIds = savedIds(savedResources, MAX_RESOURCES, 'capacity');
-        if (!taskIds?.size || !resourceIds) return null;
-        for (const task of savedTasks) {
-            if (!Array.isArray(task.prerequisites)
-                || task.prerequisites.some(id => id === task.id || !taskIds.has(id))) return null;
-            if (oldFormat) task.demands = [];
-            if (!Array.isArray(task.demands) || task.demands.some(demand => !demand
-                || !resourceIds.has(demand.resourceId) || !Number.isInteger(demand.quantity) || demand.quantity < 1
-                || demand.quantity > MAX_CAPACITY)) return null;
-        }
-        return { tasks: savedTasks, resources: savedResources };
+        const input = decodeInput(saved);
+        return input && { ...input, fileDirty: saved.fileDirty !== false };
     } catch {
         return null;
     }
@@ -106,9 +122,50 @@ function loadInput() {
 
 function saveInput() {
     try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify({ tasks, resources }));
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({ tasks, resources, title, fileDirty }));
     } catch {
         // The form and server analysis also work when browser storage is unavailable.
+    }
+}
+
+function showFileStatus(message, failed = false) {
+    fileStatus.textContent = message;
+    fileStatus.dataset.error = String(failed);
+    fileStatus.hidden = false;
+}
+
+function downloadProject() {
+    const label = title.trim() || 'Flowline 일정';
+    const name = label.replace(/[<>:"/\\|?*]/g, '_').replace(/[. ]+$/, '') || 'flowline';
+    const body = JSON.stringify({ format: FILE_FORMAT, version: FILE_VERSION, title: label, resources, tasks });
+    const url = URL.createObjectURL(new Blob([body], { type: 'application/json' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = name + '.flowline.json';
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    fileDirty = false;
+    saveInput();
+    showFileStatus(link.download + ' 다운로드를 요청했습니다.');
+}
+
+async function openProject(file) {
+    try {
+        if (file.size > MAX_FILE_SIZE) {
+            showFileStatus('1MB 이하의 Flowline 파일을 선택하세요.', true);
+            return;
+        }
+        const data = JSON.parse(await file.text());
+        const input = data?.format === FILE_FORMAT && data.version === FILE_VERSION && decodeInput(data);
+        if (!input) {
+            showFileStatus('지원하는 Flowline 일정 파일을 선택하세요.', true);
+            return;
+        }
+        if (fileDirty && !window.confirm('파일로 저장하지 않은 변경 사항이 있습니다. 선택한 일정으로 바꿀까요?')) return;
+        replaceInput(input);
+        showFileStatus('‘' + (title || file.name) + '’ 일정을 열었습니다.');
+    } catch {
+        showFileStatus('일정 파일을 읽을 수 없습니다. JSON 파일을 확인하세요.', true);
     }
 }
 
@@ -130,7 +187,13 @@ function setBusy(busy) {
 }
 
 function onEdit() {
+    fileDirty = true;
+    fileStatus.hidden = true;
     saveInput();
+    resetAnalysis();
+}
+
+function resetAnalysis() {
     if (pending) {
         pending.abort();
         pending = null;
@@ -528,18 +591,41 @@ form.addEventListener('submit', event => {
 examples.addEventListener('toggle', () => {
     if (examples.open) closeMenus(examples);
 });
-examples.addEventListener('click', event => {
-    const key = event.target.closest('button[data-example]')?.dataset.example;
-    if (!key) return;
-    ({ tasks, resources } = exampleInput(key));
+function replaceInput(input, focusId) {
+    ({ tasks, resources, title } = input);
+    projectTitle.value = title;
     nextId = nextNumber(tasks);
     nextResourceId = nextNumber(resources);
     examples.open = false;
+    fileDirty = false;
+    fileStatus.hidden = true;
     clearResult();
-    onEdit();
+    resetAnalysis();
+    saveInput();
     drawResources();
-    drawRows(key === 'blank' ? tasks[0].id : undefined);
+    drawRows(focusId);
+}
+
+examples.addEventListener('click', event => {
+    const key = event.target.closest('button[data-example]')?.dataset.example;
+    if (!key) return;
+    const input = exampleInput(key);
+    replaceInput(input, key === 'blank' ? input.tasks[0].id : undefined);
     if (key !== 'blank') void analyze();
+});
+
+projectTitle.addEventListener('input', () => {
+    title = projectTitle.value;
+    fileDirty = true;
+    fileStatus.hidden = true;
+    saveInput();
+});
+byId('save-project').addEventListener('click', downloadProject);
+byId('open-project').addEventListener('click', () => projectFile.click());
+projectFile.addEventListener('change', () => {
+    const [file] = projectFile.files;
+    projectFile.value = '';
+    if (file) void openProject(file);
 });
 
 document.addEventListener('click', event => closeMenus(event.target.closest('details')));

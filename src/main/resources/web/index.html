@@ -43,6 +43,16 @@
                         </div>
                     </details>
                 </div>
+                <div class="project-files">
+                    <label for="project-title">주제 이름</label>
+                    <div class="file-actions">
+                        <input id="project-title" type="text" maxlength="80" placeholder="예: 카페 오픈 준비">
+                        <button id="open-project" class="small-button" type="button">파일 열기</button>
+                        <button id="save-project" class="small-button" type="button">파일 저장</button>
+                        <input id="project-file" type="file" accept=".json,application/json" hidden>
+                    </div>
+                    <p id="file-status" role="status" hidden></p>
+                </div>
                 <form id="tasks-form">
                     <section class="resource-editor" aria-labelledby="resource-title">
                         <div class="editor-section-heading">

@@ -1,5 +1,6 @@
 package io.github.heejoonkwon.flowline;
 
+import com.fasterxml.jackson.annotation.JsonUnwrapped;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.StreamReadFeature;
 import com.fasterxml.jackson.databind.DeserializationFeature;
@@ -16,7 +17,7 @@ import java.util.Map;
 import java.util.concurrent.Executors;
 
 public final class WebServer {
-    private static final int MAX_REQUEST_SIZE = 256 * 1024;
+    private static final int MAX_REQUEST_SIZE = 1024 * 1024;
     private static final String JSON = "application/json";
     private static final String UTF_8 = "; charset=utf-8";
     private static final JsonMapper MAPPER = JsonMapper.builder()
@@ -26,7 +27,8 @@ public final class WebServer {
             .disable(MapperFeature.ALLOW_COERCION_OF_SCALARS)
             .build();
 
-    record Request(List<TaskScheduler.Task> tasks) {}
+    record Request(List<TaskScheduler.Task> tasks, List<ResourceScheduler.Resource> resources) {}
+    record Response(@JsonUnwrapped TaskScheduler.Schedule dependencies, ResourceScheduler.Plan optimized) {}
     record Asset(String contentType, byte[] content) {}
 
     public static void main(String[] args) throws IOException {
@@ -40,7 +42,7 @@ public final class WebServer {
                 "/app.js", asset("app.js", "text/javascript"),
                 "/graph.js", asset("graph.js", "text/javascript"),
                 "/favicon.ico", asset("favicon.ico", "image/x-icon"));
-        TaskScheduler scheduler = new TaskScheduler();
+        ResourceScheduler scheduler = new ResourceScheduler();
         HttpServer server = HttpServer.create(new InetSocketAddress(host, port), 0);
         server.setExecutor(Executors.newFixedThreadPool(4));
         server.createContext("/", exchange -> {
@@ -78,7 +80,7 @@ public final class WebServer {
         send(exchange, 200, asset.contentType(), asset.content());
     }
 
-    private static void analyze(HttpExchange exchange, TaskScheduler scheduler) throws IOException {
+    private static void analyze(HttpExchange exchange, ResourceScheduler scheduler) throws IOException {
         if (!exchange.getRequestMethod().equals("POST")) {
             exchange.getResponseHeaders().set("Allow", "POST");
             error(exchange, 405, "POST 방식으로 작업 목록을 전송하세요.");
@@ -100,11 +102,15 @@ public final class WebServer {
             if (request == null) {
                 throw new IllegalArgumentException("작업 목록을 입력하세요.");
             }
-            send(exchange, 200, JSON, MAPPER.writeValueAsBytes(scheduler.schedule(request.tasks())));
+            ResourceScheduler.Analysis analysis = scheduler.schedule(request.tasks(), request.resources());
+            send(exchange, 200, JSON, MAPPER.writeValueAsBytes(new Response(analysis.dependencies(), analysis.optimized())));
         } catch (JsonProcessingException e) {
             error(exchange, 400, "작업 목록의 JSON 형식이 올바르지 않습니다. 작업 번호와 시간은 정수로 입력하세요.");
         } catch (IllegalArgumentException e) {
             error(exchange, 400, e.getMessage());
+        } catch (IllegalStateException | LinkageError e) {
+            System.getLogger(WebServer.class.getName()).log(System.Logger.Level.ERROR, "Schedule analysis failed", e);
+            error(exchange, 500, "일정 계산을 완료하지 못했습니다.");
         }
     }
 

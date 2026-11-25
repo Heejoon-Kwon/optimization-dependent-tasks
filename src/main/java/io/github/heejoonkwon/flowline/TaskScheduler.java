@@ -17,7 +17,18 @@ final class TaskScheduler {
     static final int MAX_DURATION = 1_000_000;
     static final int MAX_NAME_LENGTH = 80;
 
-    record Task(int id, String name, int duration, List<Integer> prerequisites) {}
+    record Demand(int resourceId, int quantity) {}
+    record Task(int id, String name, int duration, List<Integer> prerequisites, List<Demand> demands) {
+        Task(int id, String name, int duration, List<Integer> prerequisites) {
+            this(id, name, duration, prerequisites, List.of());
+        }
+
+        Task {
+            if (demands == null) {
+                demands = List.of();
+            }
+        }
+    }
     record Step(int taskId, long start, long finish) {}
     record Timing(int taskId, int level, long earliestStart, long earliestFinish, long slack) {}
     record Edge(int from, int to, boolean critical) {}

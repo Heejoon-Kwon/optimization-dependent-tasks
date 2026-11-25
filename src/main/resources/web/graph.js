@@ -47,10 +47,12 @@ function layout(timings, edges) {
     };
 }
 
-export function renderGraph(viewport, controls, detail, tasks, schedule) {
+export function renderGraph(viewport, controls, detail, tasks, schedule, resources) {
     const { zoomOut, zoomFit, zoomIn } = controls;
     const taskById = new Map(tasks.map(task => [task.id, task]));
     const timingById = new Map(schedule.timings.map(timing => [timing.taskId, timing]));
+    const resourceLinks = schedule.resourceLinks ?? [];
+    const resourceByEdge = new Map(resourceLinks.map(link => [link.from + ':' + link.to, link.resourceIds]));
     const { positions, width, height } = layout(schedule.timings, schedule.edges);
 
     const surface = make('div', 'graph-surface');
@@ -71,7 +73,12 @@ export function renderGraph(viewport, controls, detail, tasks, schedule) {
     const ties = schedule.edges.filter(edge => edge.critical).length > criticalPath.length - 1
         || schedule.timings.filter(timing => timing.slack === 0).length > criticalPath.length;
     const pathLabel = ties ? '임계 경로 예시' : '임계 경로';
-    const pathNames = criticalPath.map(task => criticalPath.length <= 7 ? task.name : taskNumber(task.id)).join(' → ');
+    const pathNames = criticalPath.map((task, index) => {
+        const name = criticalPath.length <= 7 ? task.name : taskNumber(task.id);
+        if (index === 0) return name;
+        const previous = criticalPath[index - 1];
+        return (resourceByEdge.has(previous.id + ':' + task.id) ? ' ⇢ ' : ' → ') + name;
+    }).join('');
 
     function updateDetail() {
         if (selected === null) {
@@ -82,10 +89,14 @@ export function renderGraph(viewport, controls, detail, tasks, schedule) {
         const timing = timingById.get(selected);
         const interval = formatter.format(timing.earliestStart) + '–' + formatter.format(timing.earliestFinish) + '분';
         const predecessors = task.prerequisites.map(taskNumber);
-        const successors = schedule.edges.filter(edge => edge.from === selected).map(edge => taskNumber(edge.to));
-        const details = ['병렬 기준 ' + interval, '여유 ' + formatter.format(timing.slack) + '분'];
+        const successors = schedule.edges.filter(edge => edge.from === selected
+            && !resourceByEdge.has(edge.from + ':' + edge.to)).map(edge => taskNumber(edge.to));
+        const resourceDetails = resourceLinks.filter(link => link.from === selected || link.to === selected)
+            .map(link => taskNumber(link.from) + ' ⇢ ' + taskNumber(link.to) + ' (' + link.resourceIds.map(id => resources.get(id).name).join(', ') + ')');
+        const details = [interval, '여유 ' + formatter.format(timing.slack) + '분'];
         if (predecessors.length > 0) details.push('선행 ' + predecessors.join(', '));
         if (successors.length > 0) details.push('후속 ' + successors.join(', '));
+        if (resourceDetails.length > 0) details.push('자원 인계 ' + resourceDetails.join(', '));
         detail.replaceChildren(
             make('strong', '', taskNumber(task.id) + ' ' + task.name),
             document.createTextNode(' · ' + details.join(' · '))
@@ -135,6 +146,7 @@ export function renderGraph(viewport, controls, detail, tasks, schedule) {
         const to = positions.get(edge.to);
         return {
             ...edge,
+            resource: resourceByEdge.has(edge.from + ':' + edge.to),
             x1: from.x + NODE_WIDTH,
             y1: from.y + NODE_HEIGHT / 2,
             x2: to.x,
@@ -174,6 +186,7 @@ export function renderGraph(viewport, controls, detail, tasks, schedule) {
             context.fillStyle = color;
             context.lineWidth = edge.critical ? 2.2 : 1.45;
             context.lineJoin = 'round';
+            context.setLineDash(edge.resource ? [5, 4] : []);
             context.beginPath();
             context.moveTo(x1, y1);
             if (rail === null) {

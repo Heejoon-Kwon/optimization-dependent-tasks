@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#f4f6fa">
-    <meta name="description" content="작업 의존성으로 실행 순서와 임계 경로를 계산합니다.">
+    <meta name="description" content="작업 의존성과 자원 용량으로 최소 완료시간과 임계 경로를 계산합니다.">
     <title>Flowline · 작업 순서 설계</title>
     <link rel="icon" href="/favicon.ico">
     <link rel="stylesheet" href="/styles.css">
@@ -25,15 +25,14 @@
     <main class="shell">
         <div class="page-heading">
             <h1>작업 순서 설계</h1>
-            <p>작업과 선행 조건을 입력해 추천 실행 순서와 일정의 병목을 확인하세요.</p>
+            <p>자원 수량과 작업의 선행 조건을 입력해 가장 빠른 실행 일정과 병목을 확인하세요.</p>
         </div>
 
         <div class="workspace">
             <section class="panel editor" aria-labelledby="editor-title">
                 <div class="panel-heading editor-heading">
                     <div>
-                        <h2 id="editor-title">작업 목록</h2>
-                        <p>작업 이름과 소요 시간을 입력하세요.</p>
+                        <h2 id="editor-title">일정 입력</h2>
                     </div>
                     <details id="examples" class="examples">
                         <summary>예제 <span class="chevron" aria-hidden="true"></span></summary>
@@ -45,8 +44,25 @@
                     </details>
                 </div>
                 <form id="tasks-form">
+                    <section class="resource-editor" aria-labelledby="resource-title">
+                        <div class="editor-section-heading">
+                            <h3 id="resource-title">자원 목록</h3>
+                            <button id="add-resource" type="button" class="small-button">＋ 자원 추가</button>
+                        </div>
+                        <div id="resource-head" class="resource-grid task-grid-head" aria-hidden="true">
+                            <span>번호</span><span>자원 이름</span><span>수량</span><span></span>
+                        </div>
+                        <div id="resource-rows"></div>
+                        <p id="resource-empty" class="resource-empty" hidden>등록한 자원이 없습니다.</p>
+                    </section>
+                    <div class="editor-section-heading task-heading">
+                        <div>
+                            <h3>작업 목록</h3>
+                            <p>선택한 자원은 작업이 끝날 때까지 점유합니다.</p>
+                        </div>
+                    </div>
                     <div class="task-grid task-grid-head" aria-hidden="true">
-                        <span>번호</span><span>작업 이름</span><span>시간(분)</span><span>선행 작업</span><span></span>
+                        <span>번호</span><span>작업 이름</span><span>시간(분)</span><span>선행 작업</span><span>사용 자원</span><span></span>
                     </div>
                     <div id="task-rows"></div>
                     <button id="add-task" type="button" class="add-task">
@@ -68,15 +84,15 @@
                     <span id="result-status" class="result-status" aria-live="polite">분석 대기 중</span>
                 </div>
                 <dl class="metrics" aria-label="소요 시간 요약">
-                    <div class="metric">
-                        <dt><span class="metric-icon clock-icon" aria-hidden="true"></span> 직렬 총시간</dt>
-                        <dd><div class="metric-value"><span id="serial-duration">—</span><small>분</small></div>
-                            <p>한 사람이 연속으로 작업</p></dd>
-                    </div>
                     <div class="metric primary-metric">
-                        <dt><span class="metric-icon path-icon" aria-hidden="true"></span> 병렬 최소시간</dt>
+                        <dt><span class="metric-icon clock-icon" aria-hidden="true"></span> 전체 완료시간</dt>
+                        <dd><div class="metric-value"><span id="optimized-duration">—</span><small>분</small></div>
+                            <p id="optimality">자원 용량 반영</p></dd>
+                    </div>
+                    <div class="metric">
+                        <dt><span class="metric-icon path-icon" aria-hidden="true"></span> 의존성 하한</dt>
                         <dd><div class="metric-value"><span id="parallel-duration">—</span><small>분</small></div>
-                            <p>동시에 작업할 인력이 충분할 때</p></dd>
+                            <p>자원 용량이 충분할 때</p></dd>
                     </div>
                     <div class="metric">
                         <dt><span class="metric-icon stack-icon" aria-hidden="true"></span> 전체 작업</dt>
@@ -88,8 +104,8 @@
                 <section class="panel graph-panel" aria-labelledby="graph-title">
                     <div class="panel-heading graph-heading">
                         <div>
-                            <h3 id="graph-title">작업 의존성 그래프</h3>
-                            <p>화살표는 선행 작업에서 후속 작업을 가리킵니다.</p>
+                            <h3 id="graph-title">작업 DAG</h3>
+                            <p id="graph-description">선행 관계와 실행 일정의 임계 경로를 확인하세요.</p>
                         </div>
                         <div id="graph-controls" class="graph-controls" aria-label="그래프 확대·축소" hidden>
                             <button id="zoom-out" type="button" aria-label="축소">−</button>
@@ -97,13 +113,18 @@
                             <button id="zoom-in" type="button" aria-label="확대">+</button>
                         </div>
                     </div>
+                    <div id="graph-modes" class="graph-modes" role="group" aria-label="그래프 종류" hidden>
+                        <button id="optimized-graph" type="button" aria-pressed="true">실행 일정</button>
+                        <button id="dependency-graph" type="button" aria-pressed="false">선행 관계만</button>
+                    </div>
                     <div id="graph-viewport" class="graph-viewport" role="region" aria-label="작업 의존성 그래프" tabindex="0">
                         <p class="graph-empty">작업을 분석하면 그래프가 여기에 표시됩니다.</p>
                     </div>
                     <div id="graph-footer" class="graph-footer" hidden>
                         <div class="legend">
                             <span><i class="legend-line critical-line" aria-hidden="true"></i> 임계 경로</span>
-                            <span><i class="legend-line" aria-hidden="true"></i> 그 외 선행 관계</span>
+                            <span><i class="legend-line" aria-hidden="true"></i> 선행 관계</span>
+                            <span id="resource-legend" hidden><i class="legend-line resource-line" aria-hidden="true"></i> 자원 인계 순서</span>
                         </div>
                         <div id="node-detail" class="node-detail" aria-live="polite"></div>
                     </div>
@@ -112,12 +133,12 @@
                 <section class="panel order-panel" aria-labelledby="order-title">
                     <div class="panel-heading">
                         <div>
-                            <h3 id="order-title">추천 직렬 실행 순서</h3>
-                            <p>시작 가능한 작업 중 후속 작업까지 남은 시간이 가장 긴 작업을 먼저 배치합니다.</p>
+                            <h3 id="order-title">실행 일정</h3>
+                            <p>작업별 시작·종료 시각과 점유 자원</p>
                         </div>
                     </div>
-                    <p id="order-empty" class="order-empty">작업을 분석하면 실행 순서가 여기에 표시됩니다.</p>
-                    <ol id="serial-order" class="serial-order" hidden></ol>
+                    <p id="order-empty" class="order-empty">작업을 분석하면 실행 일정이 여기에 표시됩니다.</p>
+                    <ol id="schedule-order" class="serial-order" hidden></ol>
                 </section>
             </section>
         </div>

@@ -4,7 +4,16 @@
 
 ## 실행
 
-Java 17 이상과 Maven 3.9가 필요합니다.
+JDK 17 이상이 필요합니다. Gradle Wrapper는 첫 실행에 Gradle을 내려받습니다.
+
+```sh
+./gradlew build
+./gradlew run
+```
+
+`./gradlew build`는 컴파일과 테스트를 실행합니다. 설치형 배포본은 `./gradlew installDist`로 생성하고, `./build/install/flowline/bin/flowline`으로 실행할 수 있습니다.
+
+Maven을 사용한다면 Maven 3.9 이상에서 아래 명령을 실행하세요.
 
 ```sh
 mvn package
@@ -53,6 +62,6 @@ java -jar target/flowline.jar
 
 `resources`나 `demands`를 생략하면 빈 목록으로 처리합니다. 응답의 `optimized`에 전체 완료시간, 증명된 하한, 최적 여부, 실행 일정, 임계 경로와 자원 인계 간선이 들어 있습니다. 기존 의존성 계산 결과도 응답에서 확인할 수 있습니다.
 
-`mvn test`로 계산 로직의 테스트를 실행할 수 있습니다.
+`./gradlew test` 또는 `mvn test`로 계산 로직의 테스트를 실행할 수 있습니다.
 
 [OR-Tools CP-SAT](https://developers.google.com/optimization/cp/cp_solver) · [Princeton Algorithms의 DAG 최장 경로와 임계 경로](https://algs4.cs.princeton.edu/44sp/)

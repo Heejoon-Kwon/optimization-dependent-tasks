@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="theme-color" content="#f4f6fa">
+    <meta name="theme-color" content="#f2f5fa">
     <meta name="description" content="작업 의존성과 자원 용량으로 최소 완료시간과 임계 경로를 계산합니다.">
     <title>자원 제약 작업 스케줄러</title>
     <link rel="icon" href="/favicon.ico">
@@ -25,69 +25,74 @@
             <p>자원 수량과 작업의 선행 조건을 입력해 가장 빠른 실행 일정과 병목을 확인하세요.</p>
         </div>
 
-        <div class="workspace">
-            <section class="panel editor" aria-labelledby="editor-title">
-                <div class="panel-heading editor-heading">
-                    <div>
-                        <h2 id="editor-title">일정 입력</h2>
+        <section class="panel project-panel" aria-labelledby="project-heading">
+            <div class="project-heading">
+                <h2 id="project-heading">주제 및 파일</h2>
+                <details id="examples" class="examples">
+                    <summary>예제 불러오기 <span class="chevron" aria-hidden="true"></span></summary>
+                    <div class="example-menu">
+                        <button type="button" data-example="cafe">카페 음료 준비</button>
+                        <button type="button" data-example="office">월간 보고서 작성</button>
+                        <button type="button" data-example="blank">빈 목록으로 시작</button>
                     </div>
-                    <details id="examples" class="examples">
-                        <summary>예제 <span class="chevron" aria-hidden="true"></span></summary>
-                        <div class="example-menu">
-                            <button type="button" data-example="cafe">카페 음료 준비</button>
-                            <button type="button" data-example="office">월간 보고서 작성</button>
-                            <button type="button" data-example="blank">빈 목록으로 시작</button>
-                        </div>
-                    </details>
-                </div>
-                <div class="project-files">
+                </details>
+            </div>
+            <div class="project-files">
+                <div class="project-field">
                     <label for="project-title">주제 이름</label>
-                    <div class="file-actions">
-                        <input id="project-title" type="text" maxlength="80" placeholder="예: 카페 오픈 준비">
-                        <button id="open-project" class="small-button" type="button">파일 열기</button>
-                        <button id="save-project" class="small-button" type="button">파일 저장</button>
-                        <input id="project-file" type="file" accept=".json,application/json" hidden>
-                    </div>
-                    <p id="file-status" role="status" hidden></p>
+                    <input id="project-title" type="text" maxlength="80" placeholder="예: 카페 오픈 준비">
                 </div>
-                <form id="tasks-form">
-                    <section class="resource-editor" aria-labelledby="resource-title">
-                        <div class="editor-section-heading">
-                            <h3 id="resource-title">자원 목록</h3>
-                            <button id="add-resource" type="button" class="small-button">＋ 자원 추가</button>
-                        </div>
-                        <div id="resource-head" class="resource-grid task-grid-head" aria-hidden="true">
-                            <span>번호</span><span>자원 이름</span><span>수량</span><span></span>
-                        </div>
-                        <div id="resource-rows"></div>
-                        <p id="resource-empty" class="resource-empty" hidden>등록한 자원이 없습니다.</p>
-                    </section>
-                    <div class="editor-section-heading task-heading">
+                <div class="file-actions">
+                    <button id="open-project" class="file-button" type="button">파일 열기</button>
+                    <button id="save-project" class="file-button" type="button">파일 저장</button>
+                    <input id="project-file" type="file" accept=".json,application/json" hidden>
+                </div>
+                <p id="file-status" role="status" hidden></p>
+            </div>
+        </section>
+
+        <div class="workspace">
+            <form id="tasks-form" class="editor" aria-label="일정 입력">
+                <section class="panel input-panel" aria-labelledby="resource-title">
+                    <div class="panel-heading input-heading">
                         <div>
-                            <h3>작업 목록</h3>
+                            <h2 id="resource-title">자원 목록</h2>
+                            <p>동시에 사용할 수 있는 수량을 입력하세요.</p>
+                        </div>
+                        <button id="add-resource" type="button" class="section-action"><span aria-hidden="true">+</span> 자원 추가</button>
+                    </div>
+                    <div id="resource-head" class="resource-grid task-grid-head" aria-hidden="true">
+                        <span>번호</span><span>자원 이름</span><span>수량</span><span></span>
+                    </div>
+                    <div id="resource-rows"></div>
+                    <p id="resource-empty" class="resource-empty" hidden>등록한 자원이 없습니다.</p>
+                </section>
+
+                <section class="panel input-panel" aria-labelledby="task-title">
+                    <div class="panel-heading input-heading">
+                        <div>
+                            <h2 id="task-title">작업 목록</h2>
                             <p>선택한 자원은 작업이 끝날 때까지 점유합니다.</p>
                         </div>
+                        <button id="add-task" type="button" class="section-action"><span aria-hidden="true">+</span> 작업 추가</button>
                     </div>
                     <div class="task-grid task-grid-head" aria-hidden="true">
                         <span>번호</span><span>작업 이름</span><span>시간(분)</span><span>선행 작업</span><span>사용 자원</span><span></span>
                     </div>
                     <div id="task-rows"></div>
-                    <button id="add-task" type="button" class="add-task">
-                        <span aria-hidden="true">＋</span> 작업 추가
-                    </button>
-                    <p id="form-error" class="form-error" role="alert" hidden></p>
                     <div class="editor-actions">
+                        <p id="form-error" class="form-error" role="alert" hidden></p>
                         <button id="analyze" type="submit" class="primary-button">
                             <span class="analyze-icon" aria-hidden="true"><i></i><i></i><i></i></span>
                             <span id="analyze-label">작업 분석하기</span>
                         </button>
                     </div>
-                </form>
-            </section>
+                </section>
+            </form>
 
             <section class="results" aria-labelledby="results-title">
                 <div class="results-heading">
-                    <h2 id="results-title">분석 결과</h2>
+                    <h2 id="results-title" tabindex="-1">분석 결과</h2>
                     <span id="result-status" class="result-status" aria-live="polite">분석 대기 중</span>
                 </div>
                 <dl class="metrics" aria-label="소요 시간 요약">

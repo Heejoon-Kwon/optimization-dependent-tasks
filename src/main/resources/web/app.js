@@ -379,6 +379,14 @@ function drawResources(focusId) {
     if (focusId !== undefined) byId('resource-name-' + focusId).focus();
 }
 
+function taskField(className, label, control) {
+    const field = make('div', 'task-field ' + className);
+    const caption = make('span', 'field-caption', label);
+    caption.setAttribute('aria-hidden', 'true');
+    field.append(caption, control);
+    return field;
+}
+
 function drawRows(focusId) {
     const fragment = document.createDocumentFragment();
     for (const task of tasks) {
@@ -426,7 +434,14 @@ function drawRows(focusId) {
             drawRows(tasks[Math.min(i, tasks.length - 1)].id);
             onEdit();
         });
-        row.append(make('span', 'row-id', number), name, duration, buildDependencies(task), buildDemands(task), remove);
+        row.append(
+            make('span', 'row-id', number),
+            taskField('task-name', '작업 이름', name),
+            taskField('task-duration', '시간(분)', duration),
+            taskField('task-prerequisites', '선행 작업', buildDependencies(task)),
+            taskField('task-demands', '사용 자원', buildDemands(task)),
+            remove
+        );
         fragment.append(row);
     }
     rows.replaceChildren(fragment);
@@ -505,7 +520,16 @@ function clearResult() {
     byId('order-empty').hidden = false;
 }
 
-async function analyze() {
+function revealResults() {
+    const heading = byId('results-title');
+    const { top, bottom } = heading.getBoundingClientRect();
+    heading.focus({ preventScroll: true });
+    if (top < 0 || bottom > window.innerHeight - 120) {
+        heading.scrollIntoView({ block: 'start' });
+    }
+}
+
+async function analyze({ reveal = false } = {}) {
     const unnamedResource = resources.find(resource => resource.name.trim() === '');
     if (unnamedResource) {
         const field = byId('resource-name-' + unnamedResource.id);
@@ -549,6 +573,7 @@ async function analyze() {
         }
         replaceResult(data, input, inputResources);
         setStatus(data.optimized.optimal ? '분석 완료' : '탐색 한도 도달', data.optimized.optimal ? 'done' : 'stale');
+        if (reveal) revealResults();
     } catch {
         if (!controller.signal.aborted) showError('분석을 완료하지 못했습니다. 잠시 후 다시 시도하세요.');
     } finally {
@@ -585,7 +610,7 @@ addButton.addEventListener('click', () => {
 
 form.addEventListener('submit', event => {
     event.preventDefault();
-    if (!pending) void analyze();
+    if (!pending) void analyze({ reveal: true });
 });
 
 examples.addEventListener('toggle', () => {
